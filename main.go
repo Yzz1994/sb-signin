@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -167,7 +168,11 @@ func main() {
 	go scheduler(st, srv)
 
 	addr := fmt.Sprintf(":%d", cli.port)
-	log.Printf("Web 管理页面: http://127.0.0.1%s", addr)
+	localIP := getLocalIP()
+	log.Printf("Web 管理页面: http://%s%s", localIP, addr)
+	if localIP != "127.0.0.1" {
+		log.Printf("本机访问: http://127.0.0.1%s", addr)
+	}
 	log.Printf("浏览器扩展请填写服务地址: http://127.0.0.1%s", addr)
 	log.Printf("每日签到时间: UTC+8 %02d:%02d", st.getSettings().RunHour, st.getSettings().RunMinute)
 
@@ -182,6 +187,25 @@ func main() {
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
 		log.Fatalf("Web 服务启动失败: %v", err)
 	}
+}
+
+// getLocalIP 获取本机第一个非回环 IPv4 地址
+func getLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, a := range addrs {
+		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ip4 := ipnet.IP.To4(); ip4 != nil {
+				// 跳过链路本地地址（169.254.x.x）
+				if !ip4.IsLinkLocalUnicast() {
+					return ip4.String()
+				}
+			}
+		}
+	}
+	return "127.0.0.1"
 }
 
 // scheduler 常驻调度：每天在设定时间对所有账号签到

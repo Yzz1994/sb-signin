@@ -53,16 +53,21 @@ git push origin v1.0.0
 > ⚠️ 发布前请确认：`.gitignore` 已忽略 `data.json`（含 Cookie 和安全码，绝不能提交）。
 > 仓库名已配置为 `Yzz1994/sb-signin`，如换了仓库请同步修改 `install.sh` 里的仓库名。
 
-### 让别人一键部署（Linux 系统服务）
+### 一键部署（Linux 系统服务）
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sudo sh
 ```
 
-脚本会自动：下载对应架构二进制 → 安装到 `/usr/local/bin` → 创建并启动 `systemd` 服务 → 输出安全码。
+自定义端口（可选，默认 8080）：
+```bash
+curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sudo sh -s -- 9000
+```
+
+脚本会自动：下载对应架构二进制 → 安装到 `/usr/local/bin` → 创建并启动 `systemd` 服务 → 输出本机 IP 和安全码。
 
 安装完成后：
-- 管理页面：`http://127.0.0.1:8080`（安全码在安装输出里）
+- 管理页面：`http://<本机IP>:8080`（安全码在安装输出里）
 - 查看状态：`systemctl status sb-signin`
 - 查看日志：`journalctl -u sb-signin -f`
 - 卸载：`systemctl disable --now sb-signin; rm -f /etc/systemd/system/sb-signin.service /usr/local/bin/sb-signin`

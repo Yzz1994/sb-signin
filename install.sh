@@ -4,8 +4,10 @@
 # 用法：
 #   curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sudo sh
 #
-# 可选环境变量：
-#   PORT           Web 服务端口（默认 8080）
+# 自定义端口（三种方式任选）：
+#   curl -fsSL .../install.sh | sudo sh -s -- 9000
+#   curl -fsSL .../install.sh | sudo PORT=9000 sh
+#   或导出 PORT=9000 后运行脚本
 
 set -e
 
@@ -15,6 +17,19 @@ DATA_DIR="/var/lib/sb-signin"
 DATA_FILE="$DATA_DIR/data.json"
 SERVICE_FILE="/etc/systemd/system/sb-signin.service"
 PORT="${PORT:-8080}"
+# 第一个位置参数作为端口（优先级高于 PORT 环境变量）
+if [ -n "${1:-}" ]; then
+  PORT="$1"
+fi
+
+# 校验端口
+case "$PORT" in
+  ''|*[!0-9]*) echo "✗ 端口必须是数字: $PORT" >&2; exit 1 ;;
+  *) ;;
+esac
+if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+  echo "✗ 端口范围错误（1-65535）: $PORT" >&2; exit 1
+fi
 
 # 需要 root
 if [ "$(id -u)" -ne 0 ]; then
@@ -77,10 +92,20 @@ EOF
 systemctl daemon-reload
 systemctl enable --now sb-signin
 
+# 获取本机 IP（优先非回环网卡）
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+if [ -z "$LOCAL_IP" ] || [ "$LOCAL_IP" = "127.0.0.1" ]; then
+  LOCAL_IP=$(ip -4 addr show scope global 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+fi
+[ -z "$LOCAL_IP" ] && LOCAL_IP="127.0.0.1"
+
 echo ""
 echo "✅ 安装完成，签到服务已启动"
 echo ""
-echo "  管理页面: http://127.0.0.1:$PORT"
+echo "  管理页面: http://$LOCAL_IP:$PORT"
+if [ "$LOCAL_IP" != "127.0.0.1" ]; then
+  echo "  本机访问: http://127.0.0.1:$PORT"
+fi
 echo "  安全码:   $TOKEN"
 echo ""
 echo "  常用命令："
