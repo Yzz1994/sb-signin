@@ -1,59 +1,92 @@
 #!/bin/sh
-# 烧饼论坛（sb.sb）签到助手 一键部署脚本（Linux / macOS）
+# 烧饼论坛（sb.sb）签到助手 - Linux 一键安装（systemd 服务）
 #
 # 用法：
-#   curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sudo sh
 #
-# 可选参数/环境变量：
-#   REPO          GitHub 仓库，如 yourname/sb-signin（或作为第一个参数传入）
-#   INSTALL_DIR   安装目录（默认 ~/.local/bin）
+# 可选环境变量：
+#   PORT           Web 服务端口（默认 8080）
 
 set -e
 
-# GitHub 仓库（可用环境变量 REPO 覆盖）
-REPO="${REPO:-${1:-Yzz1994/sb-signin}}"
-INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
-BIN_NAME="sb-signin"
+REPO="Yzz1994/sb-signin"
+BIN="/usr/local/bin/sb-signin"
+DATA_DIR="/var/lib/sb-signin"
+DATA_FILE="$DATA_DIR/data.json"
+SERVICE_FILE="/etc/systemd/system/sb-signin.service"
+PORT="${PORT:-8080}"
 
-detect_platform() {
-  OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-  ARCH=$(uname -m)
-  case "$ARCH" in
-    x86_64|amd64) ARCH="amd64" ;;
-    aarch64|arm64) ARCH="arm64" ;;
-    *) echo "✗ 不支持的架构: $ARCH" >&2; exit 1 ;;
-  esac
-  case "$OS" in
-    linux|darwin) ;;
-    *) echo "✗ 不支持的系统: $OS（Windows 请用 install.ps1）" >&2; exit 1 ;;
-  esac
-}
+# 需要 root
+if [ "$(id -u)" -ne 0 ]; then
+  echo "需要 root 权限，请重新运行："
+  echo "  curl -fsSL https://raw.githubusercontent.com/$REPO/main/install.sh | sudo sh"
+  exit 1
+fi
 
-main() {
-  detect_platform
+# 仅支持 Linux（systemd）
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+if [ "$OS" != "linux" ]; then
+  echo "✗ 本脚本仅支持 Linux（systemd）。"
+  exit 1
+fi
 
-  FILE="sb-signin-${OS}-${ARCH}"
-  URL="https://github.com/$REPO/releases/latest/download/$FILE"
+# 检测架构
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64|amd64) ARCH="amd64" ;;
+  aarch64|arm64) ARCH="arm64" ;;
+  *) echo "✗ 不支持的架构: $ARCH" >&2; exit 1 ;;
+esac
 
-  echo ">> 平台: $OS/$ARCH"
-  echo ">> 仓库: $REPO"
-  echo ">> 下载: $URL"
+FILE="sb-signin-linux-$ARCH"
+URL="https://github.com/$REPO/releases/latest/download/$FILE"
 
-  mkdir -p "$INSTALL_DIR"
-  curl -fL --retry 3 -o "$INSTALL_DIR/$BIN_NAME" "$URL"
-  chmod +x "$INSTALL_DIR/$BIN_NAME"
+echo ">> 平台: linux/$ARCH"
+echo ">> 下载: $URL"
+curl -fL --retry 3 -o "$BIN" "$URL"
+chmod +x "$BIN"
 
-  echo ""
-  echo "✅ 安装完成: $INSTALL_DIR/$BIN_NAME"
-  echo ""
-  echo "启动签到服务："
-  echo "  $INSTALL_DIR/$BIN_NAME"
-  echo ""
-  echo "首次运行会生成安全码并打印在控制台，"
-  echo "之后浏览器访问 http://127.0.0.1:8080 输入安全码即可管理。"
-  echo ""
-  echo "提示：请确认 $INSTALL_DIR 在你的 PATH 中；"
-  echo "若不是，可运行： export PATH=\"\$PATH:$INSTALL_DIR\""
-}
+# 数据目录
+mkdir -p "$DATA_DIR"
 
-main
+# 安全码：已有则保留，没有则生成
+TOKEN=$("$BIN" -data "$DATA_FILE" -show-token 2>/dev/null | grep -oE '[A-Za-z0-9]{6,}' | tail -1 || true)
+if [ -z "$TOKEN" ]; then
+  "$BIN" -data "$DATA_FILE" -reset-token >/dev/null 2>&1 || true
+  TOKEN=$("$BIN" -data "$DATA_FILE" -show-token 2>/dev/null | grep -oE '[A-Za-z0-9]{6,}' | tail -1 || true)
+fi
+
+# 写入 systemd 服务
+cat > "$SERVICE_FILE" <<EOF
+[Unit]
+Description=SB.SB Signin Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$DATA_DIR
+ExecStart=$BIN -data $DATA_FILE -port $PORT
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now sb-signin
+
+echo ""
+echo "✅ 安装完成，签到服务已启动"
+echo ""
+echo "  管理页面: http://127.0.0.1:$PORT"
+echo "  安全码:   $TOKEN"
+echo ""
+echo "  常用命令："
+echo "    查看状态: systemctl status sb-signin"
+echo "    查看日志: journalctl -u sb-signin -f"
+echo "    停止服务: systemctl stop sb-signin"
+echo "    卸载:     systemctl disable --now sb-signin; rm -f $SERVICE_FILE $BIN"
+echo ""
+echo "首次使用：浏览器打开管理页面，输入上面的安全码即可。"

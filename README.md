@@ -51,21 +51,21 @@ git push origin v1.0.0
 自动构建产物（Windows/Linux/macOS × amd64/arm64 共 6 个）+ 浏览器扩展 `extension.zip`，并生成 Release 说明。
 
 > ⚠️ 发布前请确认：`.gitignore` 已忽略 `data.json`（含 Cookie 和安全码，绝不能提交）。
-> 仓库名已配置为 `Yzz1994/sb-signin`，如换了仓库请同步修改 `install.sh` / `install.ps1` 里的仓库名。
+> 仓库名已配置为 `Yzz1994/sb-signin`，如换了仓库请同步修改 `install.sh` 里的仓库名。
 
-### 让别人一键部署
+### 让别人一键部署（Linux 系统服务）
 
-**Linux / macOS：**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sudo sh
 ```
 
-**Windows（PowerShell）：**
-```powershell
-powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.ps1 -OutFile install.ps1; .\install.ps1"
-```
+脚本会自动：下载对应架构二进制 → 安装到 `/usr/local/bin` → 创建并启动 `systemd` 服务 → 输出安全码。
 
-部署完成后直接运行 `sb-signin`（Windows 为 `sb-signin.exe`），首次运行会打印安全码，浏览器打开 `http://127.0.0.1:8080` 输入安全码即可。
+安装完成后：
+- 管理页面：`http://127.0.0.1:8080`（安全码在安装输出里）
+- 查看状态：`systemctl status sb-signin`
+- 查看日志：`journalctl -u sb-signin -f`
+- 卸载：`systemctl disable --now sb-signin; rm -f /etc/systemd/system/sb-signin.service /usr/local/bin/sb-signin`
 
 ## 快速开始
 
