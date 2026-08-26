@@ -58,8 +58,20 @@ URL="https://github.com/$REPO/releases/latest/download/$FILE"
 
 echo ">> 平台: linux/$ARCH"
 echo ">> 下载: $URL"
-curl -fL --retry 3 -o "$BIN" "$URL"
-chmod +x "$BIN"
+
+# 先下载到临时文件，避免覆盖正在运行的二进制（Text file busy）
+TMP_BIN="$(mktemp /tmp/sb-signin.XXXXXX)"
+trap 'rm -f "$TMP_BIN"' EXIT
+curl -fL --retry 3 -o "$TMP_BIN" "$URL"
+chmod +x "$TMP_BIN"
+
+# 停止旧服务（若已安装），再原子替换二进制
+if systemctl list-unit-files --type=service 2>/dev/null | grep -q '^sb-signin\.service'; then
+  echo ">> 停止旧服务..."
+  systemctl stop sb-signin 2>/dev/null || true
+fi
+mv -f "$TMP_BIN" "$BIN"
+trap - EXIT
 
 # 数据目录
 mkdir -p "$DATA_DIR"
