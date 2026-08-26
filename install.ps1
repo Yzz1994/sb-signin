@@ -6,7 +6,7 @@
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Repo "yourname/sb-signin"
 
 param(
-  [string]$Repo = "USER/REPO",   # TODO: 发布前替换为你的 GitHub 仓库
+  [string]$Repo = "Yzz1994/sb-signin",
   [string]$OutFile = "sb-signin.exe"
 )
 

@@ -50,20 +50,19 @@ git push origin v1.0.0
 
 自动构建产物（Windows/Linux/macOS × amd64/arm64 共 6 个）+ 浏览器扩展 `extension.zip`，并生成 Release 说明。
 
-> ⚠️ 发布前请做两件事：
-> 1. 把 `install.sh` 和 `install.ps1` 里的 `USER/REPO` 替换成你的真实仓库名
-> 2. 确认 `.gitignore` 已忽略 `data.json`（含 Cookie 和安全码，绝不能提交）
+> ⚠️ 发布前请确认：`.gitignore` 已忽略 `data.json`（含 Cookie 和安全码，绝不能提交）。
+> 仓库名已配置为 `Yzz1994/sb-signin`，如换了仓库请同步修改 `install.sh` / `install.ps1` 里的仓库名。
 
 ### 让别人一键部署
 
 **Linux / macOS：**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/你的用户名/你的仓库/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sh
 ```
 
 **Windows（PowerShell）：**
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://raw.githubusercontent.com/你的用户名/你的仓库/main/install.ps1 -OutFile install.ps1; .\install.ps1"
+powershell -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.ps1 -OutFile install.ps1; .\install.ps1"
 ```
 
 部署完成后直接运行 `sb-signin`（Windows 为 `sb-signin.exe`），首次运行会打印安全码，浏览器打开 `http://127.0.0.1:8080` 输入安全码即可。

@@ -10,8 +10,8 @@
 
 set -e
 
-# TODO: 发布前请把下面替换为你的 GitHub 仓库，或通过环境变量 REPO 指定
-REPO="${REPO:-${1:-USER/REPO}}"
+# GitHub 仓库（可用环境变量 REPO 覆盖）
+REPO="${REPO:-${1:-Yzz1994/sb-signin}}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 BIN_NAME="sb-signin"
 
