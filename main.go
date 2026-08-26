@@ -228,36 +228,47 @@ func getLocalIP() string {
 	return "127.0.0.1"
 }
 
-// scheduler 常驻调度：每分钟检查一次是否到签到时间（设置变更最多 1 分钟生效）
+// scheduler 常驻调度：每分钟检查一次；用日期去重，到点即签，避免边界漏签
 func scheduler(st *Store, srv *Server) {
+	lastSignedDay := "" // 上次签到的 UTC+8 日期，防止同一天重复签到
 	lastLoggedNext := ""
 	for {
 		cfg := st.getSettings()
-		next := nextRun(cfg)
-		wait := time.Until(next)
+		now := time.Now().In(cst)
+		todayStr := now.Format("2006-01-02")
 
-		// 下次签到时间变化时才打印，避免刷屏
-		nextStr := next.In(cst).Format("2006-01-02 15:04:05 MST")
-		if nextStr != lastLoggedNext {
-			log.Printf("下次签到时间: %s（%s 后）", nextStr, wait.Round(time.Second))
-			lastLoggedNext = nextStr
-		}
+		// 今天的签到时间点
+		target := time.Date(now.Year(), now.Month(), now.Day(), cfg.RunHour, cfg.RunMinute, 0, 0, cst)
 
-		if wait <= 0 {
-			// 到点，执行签到
+		// 已到点（now >= target）且今天尚未签到 → 执行签到
+		if !now.Before(target) && lastSignedDay != todayStr {
 			log.Println("========== 开始定时签到 ==========")
 			results := srv.signinAll()
 			if len(results) == 0 {
 				log.Println("没有启用的账号，跳过")
 			}
 			log.Println("========== 定时签到结束 ==========")
-			time.Sleep(time.Second) // 签到后重新计算，避免紧循环
-			continue
+			lastSignedDay = todayStr
 		}
 
-		// 未到点：最多睡 1 分钟再检查，让设置变更快速生效
+		// 计算下一次签到时间（仅用于日志展示）
+		next := target
+		if !next.After(now) {
+			next = next.AddDate(0, 0, 1)
+		}
+		nextStr := next.In(cst).Format("2006-01-02 15:04:05 MST")
+		if nextStr != lastLoggedNext {
+			log.Printf("下次签到时间: %s（%s 后）", nextStr, time.Until(next).Round(time.Second))
+			lastLoggedNext = nextStr
+		}
+
+		// 最多睡 1 分钟再检查（设置变更快速生效），至少睡 1 秒避免紧循环
+		wait := time.Until(next)
 		if wait > time.Minute {
 			wait = time.Minute
+		}
+		if wait < time.Second {
+			wait = time.Second
 		}
 		time.Sleep(wait)
 	}
