@@ -2,7 +2,7 @@
 # 烧饼论坛（sb.sb）签到助手 一键部署脚本（Linux / macOS）
 #
 # 用法：
-#   curl -fsSL https://raw.githubusercontent.com/USER/REPO/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Yzz1994/sb-signin/main/install.sh | sh
 #
 # 可选参数/环境变量：
 #   REPO          GitHub 仓库，如 yourname/sb-signin（或作为第一个参数传入）
