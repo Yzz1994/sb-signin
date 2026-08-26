@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+body{width:280px;font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;margin:0;padding:14px;background:#161a22;color:#e6e8ee;font-size:13px}
+h2{font-size:14px;margin:0 0 10px}
+p{color:#8b93a5;line-height:1.6;margin:6px 0}
+button{width:100%;padding:10px;border:none;border-radius:8px;background:#4c8dff;color:#fff;font-size:14px;cursor:pointer;margin-top:8px}
+button:hover{background:#3a6fd8}
+button:disabled{opacity:.5;cursor:not-allowed}
+#status{margin-top:10px;font-size:12px;color:#8b93a5;word-break:break-all;line-height:1.6}
+#status.ok{color:#2ecc71}
+#status.err{color:#e74c3c}
+input{width:100%;padding:8px;border-radius:6px;border:1px solid #262c3a;background:#1c212c;color:#e6e8ee;font-size:13px;margin-top:6px;box-sizing:border-box}
+label{color:#8b93a5;font-size:12px}
+</style>
+</head>
+<body>
+<h2>烧饼论坛签到 Cookie 助手</h2>
+<p>1. 请先在浏览器登录 <code>sb.sb</code></p>
+<p>2. 点击下方按钮，自动读取登录 Cookie 并发送到本地签到服务</p>
+<label>服务地址</label>
+<input type="text" id="server" value="http://127.0.0.1:8080">
+<label style="display:block;margin-top:6px">安全码</label>
+<input type="password" id="token" placeholder="程序控制台显示的安全码">
+<label style="display:block;margin-top:6px">账号备注名（可选）</label>
+<input type="text" id="name" placeholder="例如：我的主号">
+<button id="go">获取并发送 Cookie</button>
+<div id="status"></div>
+<script src="popup.js"></script>
+</body>
+</html>

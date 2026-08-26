@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>烧饼论坛签到助手</title>
+<style>
+:root{
+  --bg:#0f1115; --panel:#161a22; --panel2:#1c212c; --border:#262c3a;
+  --text:#e6e8ee; --muted:#8b93a5; --accent:#4c8dff; --accent2:#3a6fd8;
+  --green:#2ecc71; --red:#e74c3c; --yellow:#f1c40f;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;min-height:100vh}
+.wrap{max-width:1100px;margin:0 auto;padding:20px}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:20px}
+h1{font-size:20px;font-weight:600;display:flex;align-items:center;gap:10px}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#ff8a5c,#ff5c5c);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:15px}
+.header-info{color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+.header-actions{display:flex;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;cursor:pointer;transition:.15s}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent2)}
+.btn.danger{color:var(--red)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+section{margin-bottom:24px}
+.section-title{font-size:14px;font-weight:600;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;position:relative}
+.card.disabled{opacity:.55}
+.card.signed-today{border-color:rgba(46,204,113,.55);box-shadow:0 0 0 1px rgba(46,204,113,.25)}
+.card-head{display:flex;align-items:center;gap:8px}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:var(--accent);flex-shrink:0}
+.card-name{font-weight:600;font-size:15px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid var(--border)}
+.badge.success{color:var(--green);border-color:rgba(46,204,113,.4)}
+.badge.expired{color:var(--red);border-color:rgba(231,76,60,.4)}
+.badge.fail{color:var(--yellow);border-color:rgba(241,196,15,.4)}
+.badge.idle{color:var(--muted)}
+.today-badge{background:rgba(46,204,113,.15);color:var(--green);border-color:rgba(46,204,113,.55);font-weight:700;padding:3px 10px;font-size:12px;white-space:nowrap}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{flex:1;min-width:60px;background:var(--panel2);border-radius:8px;padding:8px;text-align:center}
+.stat b{font-size:18px;display:block}
+.stat span{font-size:11px;color:var(--muted)}
+.lastmsg{font-size:12px;color:var(--muted);line-height:1.5;min-height:18px}
+.card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.switch{position:relative;width:38px;height:22px;display:inline-block;cursor:pointer}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:var(--panel2);border:1px solid var(--border);border-radius:22px;transition:.2s}
+.slider:before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;background:var(--muted);border-radius:50%;transition:.2s}
+.switch input:checked+.slider{background:var(--accent);border-color:var(--accent)}
+.switch input:checked+.slider:before{transform:translateX(16px);background:#fff}
+.logbox{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;max-height:320px;overflow-y:auto}
+.log-line{font-size:12px;color:var(--muted);padding:4px 0;border-bottom:1px solid rgba(38,44,58,.5);font-family:ui-monospace,"Cascadia Mono",Consolas,monospace}
+.log-line:last-child{border-bottom:none}
+.log-line .t{color:var(--muted)}
+.log-line .ok{color:var(--green)}
+.log-line .err{color:var(--red)}
+.log-line .exp{color:var(--yellow)}
+/* 弹窗 */
+.modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal-mask.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;padding:22px}
+.modal h2{font-size:17px;margin-bottom:16px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.field input,.field textarea{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;font-family:inherit}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--accent)}
+.field textarea{min-height:90px;resize:vertical}
+.field .hint{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
+.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.tabs{display:flex;gap:4px;background:var(--panel2);border-radius:8px;padding:4px;margin-bottom:14px}
+.tab{flex:1;text-align:center;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--muted)}
+.tab.active{background:var(--panel);color:var(--text)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{color:var(--muted);text-align:center;padding:40px 0;font-size:14px}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:14px;z-index:200;display:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.toast.show{display:block}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+.guide{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;font-size:13px;color:var(--muted);line-height:1.8}
+.guide code{background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--accent);font-size:12px}
+.guide ol{padding-left:20px}
+.guide b{color:var(--text)}
+/* 安全码登录门 */
+.auth-mask{position:fixed;inset:0;background:var(--bg);z-index:300;display:none;align-items:center;justify-content:center;padding:20px}
+.auth-mask.show{display:flex}
+.auth-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:380px;text-align:center}
+.auth-box h2{font-size:18px;margin-bottom:8px}
+.auth-hint{font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:16px}
+.auth-box input{width:100%;padding:11px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:12px;text-align:center;letter-spacing:2px}
+.auth-box input:focus{outline:none;border-color:var(--accent)}
+.auth-err{color:var(--red);font-size:12px;margin-top:10px;min-height:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="logo">饼</span>烧饼论坛签到助手</h1>
+    <div class="header-info">
+      <span>下次签到：<b id="next-run">--</b></span>
+      <span id="now-time">--</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn" id="btn-signin-all">全部签到</button>
+      <button class="btn" id="btn-settings">⚙ 设置</button>
+      <button class="btn primary" id="btn-add">+ 添加账号</button>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-title">
+      <span>账号列表（<span id="account-count">0</span>）</span>
+      <span id="signed-count" style="color:var(--green);font-weight:600"></span>
+    </div>
+    <div class="grid" id="account-grid"></div>
+    <div class="empty" id="empty-tip" style="display:none">还没有账号，点击右上角「+ 添加账号」或安装浏览器扩展一键导入</div>
+  </section>
+
+  <section>
+    <div class="section-title"><span>Cookie 获取指引</span></div>
+    <div class="guide">
+      <b>方式一（推荐）：浏览器扩展一键获取</b>
+      <ol>
+        <li>解压 <code>extension</code> 目录（已随程序提供）</li>
+        <li>打开 <code>chrome://extensions</code>（Edge 为 <code>edge://extensions</code>），开启「开发者模式」</li>
+        <li>点「加载已解压的扩展程序」，选择 <code>extension</code> 文件夹</li>
+        <li>登录 <code>sb.sb</code> 后，点击工具栏上的扩展图标，会自动读取 Cookie 并回传到本服务</li>
+      </ol>
+      <br>
+      <b>方式二：手动粘贴 Cookie</b>
+      <ol>
+        <li>浏览器登录 <code>sb.sb</code>，按 <code>F12</code> → 「应用/Application」→ Cookies → <code>sb.sb</code></li>
+        <li>复制 <code>__Host-bbs_session</code> 和 <code>__Host-bbs_csrf</code> 两行的值，或直接复制整段 <code>Cookie: name=value; ...</code> 粘贴到添加账号弹窗里自动解析</li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-title"><span>签到日志</span></div>
+    <div class="logbox" id="logbox"><div class="empty">暂无日志</div></div>
+  </section>
+</div>
+
+<!-- 添加/编辑账号弹窗 -->
+<div class="modal-mask" id="account-modal">
+  <div class="modal">
+    <h2 id="account-modal-title">添加账号</h2>
+    <div class="tabs" id="cookie-tabs">
+      <div class="tab active" data-tab="paste">粘贴 Cookie 自动解析</div>
+      <div class="tab" data-tab="manual">手动填写</div>
+    </div>
+    <div class="field">
+      <label>账号备注名</label>
+      <input type="text" id="f-name" placeholder="例如：我的主号">
+    </div>
+    <div class="field" id="paste-field">
+      <label>粘贴 Cookie（整段 Cookie 头或 curl 命令均可）</label>
+      <textarea id="f-cookie-paste" placeholder='Cookie: __Host-bbs_csrf=xxx; __Host-bbs_session=yyy; ...&#10;&#10;或粘贴 "Copy as cURL" 的一整段命令'></textarea>
+      <div class="hint">自动识别 <code>__Host-bbs_session</code>（登录态）和 <code>__Host-bbs_csrf</code></div>
+    </div>
+    <div class="field" id="manual-field" style="display:none">
+      <label>__Host-bbs_session（登录态，必填）</label>
+      <input type="text" id="f-session" placeholder="粘贴 __Host-bbs_session 的值">
+    </div>
+    <div class="field" id="manual-csrf-field" style="display:none">
+      <label>__Host-bbs_csrf（可选）</label>
+      <input type="text" id="f-csrf" placeholder="粘贴 __Host-bbs_csrf 的值">
+    </div>
+    <div class="field" id="parse-result" style="display:none">
+      <div class="hint" id="parse-result-text"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="btn-cancel">取消</button>
+      <button class="btn primary" id="btn-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal-mask" id="settings-modal">
+  <div class="modal" style="max-width:420px">
+    <h2>签到设置</h2>
+    <div class="field">
+      <label>修改安全码（至少 6 位）</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="s-new-token" placeholder="输入新的安全码" style="flex:1">
+        <button type="button" class="btn" id="btn-set-token" style="white-space:nowrap">修改</button>
+      </div>
+      <div class="hint">修改后需用新安全码重新登录页面，旧安全码立即失效</div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <div class="field">
+      <label>每日签到时间（UTC+8）</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="s-hour" min="0" max="23" style="width:80px">
+        <span>:</span>
+        <input type="number" id="s-minute" min="0" max="59" style="width:80px">
+        <span class="hint" style="margin:0">论坛每日 08:00 更新，建议填 08:05</span>
+      </div>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="s-runonstart"> 启动时立即签到一次
+      </label>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <h2 style="font-size:14px;margin-bottom:10px">微信通知（Server酱）</h2>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="s-notify-enabled"> 启用微信通知
+      </label>
+      <div class="hint">到 <code>sct.ftqq.com</code> 微信扫码关注公众号，在「SendKey」页复制密钥填入下方</div>
+    </div>
+    <div class="field">
+      <label>Server酱 SendKey</label>
+      <input type="text" id="s-sendkey" placeholder="SCT 开头的密钥，如 SCTxxxxx">
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <h2 style="font-size:14px;margin-bottom:10px">Telegram 通知</h2>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="s-telegram-enabled"> 启用 Telegram 通知
+      </label>
+      <div class="hint">在 Telegram 找 <code>@BotFather</code> 创建 Bot 拿 Token；再给 Bot 发条消息后，访问 <code>api.telegram.org/bot&lt;Token&gt;/getUpdates</code> 获取 Chat ID</div>
+    </div>
+    <div class="field">
+      <label>Bot Token</label>
+      <input type="text" id="s-tg-token" placeholder="数字:字母 格式，如 123456:ABC...">
+    </div>
+    <div class="field">
+      <label>Chat ID</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="s-tg-chatid" placeholder="你的数字 ID，如 123456789" style="flex:1">
+        <button type="button" class="btn" id="btn-discover-chatid" style="white-space:nowrap">自动获取</button>
+      </div>
+      <div class="hint">点「自动获取」后，去 Telegram 给你的 Bot 发任意一条消息即可自动识别</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="btn-settings-cancel">取消</button>
+      <button class="btn primary" id="btn-settings-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 安全码登录门 -->
+<div class="auth-mask" id="auth-mask">
+  <div class="auth-box">
+    <h2>🔒 请输入安全码</h2>
+    <p class="auth-hint">安全码在程序首次运行时显示在控制台；可用 <code>sb-signin.exe -show-token</code> 查看</p>
+    <input type="password" id="auth-token" placeholder="安全码" autocomplete="off">
+    <button class="btn primary" id="auth-submit" style="width:100%;justify-content:center">进入</button>
+    <div class="auth-err" id="auth-err"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

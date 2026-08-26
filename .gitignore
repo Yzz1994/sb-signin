@@ -1,0 +1,16 @@
+# 编译产物
+sb-signin
+sb-signin.exe
+
+# 运行时数据（含账号 Cookie 和安全码，绝不能提交！）
+data.json
+
+# 日志
+server.log
+*.log
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

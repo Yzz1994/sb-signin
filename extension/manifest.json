@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "烧饼论坛签到 Cookie 助手",
+  "version": "1.0.0",
+  "description": "一键读取 sb.sb 的登录 Cookie 并发送到本地签到服务",
+  "permissions": ["cookies"],
+  "host_permissions": [
+    "https://sb.sb/*",
+    "http://127.0.0.1:8080/*",
+    "http://localhost:8080/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "烧饼论坛签到 Cookie 助手"
+  }
+}
