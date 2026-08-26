@@ -107,9 +107,12 @@ func main() {
 		return
 	}
 
+	// 解析数据文件路径（默认 data.json 时，若当前目录不存在则回退到系统服务目录）
+	dataFile := resolveDataPath(cli.dataPath)
+
 	// 命令行模式：查看/重置（或自定义）安全码
 	if cli.showToken || cli.resetToken {
-		st, err := newStore(cli.dataPath)
+		st, err := newStore(dataFile)
 		if err != nil {
 			log.Fatalf("初始化存储失败: %v", err)
 		}
@@ -143,11 +146,11 @@ func main() {
 		return
 	}
 
-	st, err := newStore(cli.dataPath)
+	st, err := newStore(dataFile)
 	if err != nil {
 		log.Fatalf("初始化存储失败: %v", err)
 	}
-	log.Printf("数据文件: %s", cli.dataPath)
+	log.Printf("数据文件: %s", dataFile)
 
 	// 首次运行：生成安全码
 	if st.getAccessToken() == "" {
@@ -187,6 +190,23 @@ func main() {
 	if err := http.ListenAndServe(addr, srv.Handler()); err != nil {
 		log.Fatalf("Web 服务启动失败: %v", err)
 	}
+}
+
+// resolveDataPath 解析数据文件路径。
+// 当使用默认路径 "data.json" 且当前目录不存在该文件时，回退到 systemd 服务目录，
+// 这样通过服务安装后，直接运行 `sb-signin -show-token` 也能读到安全码。
+func resolveDataPath(p string) string {
+	if p != "data.json" {
+		return p // 显式指定了路径，原样使用
+	}
+	if _, err := os.Stat("data.json"); err == nil {
+		return "data.json"
+	}
+	const sysPath = "/var/lib/sb-signin/data.json"
+	if _, err := os.Stat(sysPath); err == nil {
+		return sysPath
+	}
+	return "data.json"
 }
 
 // getLocalIP 获取本机第一个非回环 IPv4 地址
