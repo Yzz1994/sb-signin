@@ -263,13 +263,7 @@ func scheduler(st *Store, srv *Server) {
 		}
 
 		// 最多睡 1 分钟再检查（设置变更快速生效），至少睡 1 秒避免紧循环
-		wait := time.Until(next)
-		if wait > time.Minute {
-			wait = time.Minute
-		}
-		if wait < time.Second {
-			wait = time.Second
-		}
+		wait := max(min(time.Until(next), time.Minute), time.Second)
 		time.Sleep(wait)
 	}
 }
