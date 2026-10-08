@@ -2,13 +2,14 @@
 
 Go 实现的常驻签到服务，**支持多账号 + Web 可视化配置 + 浏览器扩展一键获取 Cookie**。
 
-该论坛的签到机制是「登录后进入 `https://sb.sb/signin/` 页面，点击页面上「立即签到」按钮完成签到」，签到按 UTC 计算、UTC+8 时区每日 08:00 更新。
+该论坛的签到机制是「登录后进入 `https://sb.sb/checkin/` 页面，点击页面上「立即签到」按钮完成签到」（旧地址 `/signin/` 已 301 跳转）；签到前需先通过页面上的 cap.js 人机验证（工作量证明 + 浏览器环境检测），程序会自动完成该验证，无需人工干预。签到按 UTC 计算、UTC+8 时区每日 08:00 更新。
 
 ## 功能
 
 - ✅ 多账号：每个账号独立 Cookie、启用开关、签到统计（连续/本月/累计/最长）
 - ✅ Web 管理页面：可视化增删改查账号、手动签到、配置签到时间、查看日志
 - ✅ 定时签到：常驻运行，每天到点自动签到所有启用账号
+- ✅ 自动人机验证：内置 cap.js 工作量证明（PoW）求解与验证脚本复刻，全自动通过签到前的人机验证
 - ✅ 微信通知：通过 Server酱 推送签到结果到微信（成功/失败/失效均推送）
 - ✅ Telegram 通知：通过 Telegram Bot 推送签到结果（与微信独立开关，可同时启用），支持自动获取 Chat ID
 - ✅ 安全码：访问 Web 页面、浏览器插件上传 Cookie 均需安全码验证
@@ -87,6 +88,31 @@ go build -o sb-signin.exe .   # 或直接运行已编译的 sb-signin.exe
 - `-data` 数据文件，默认 `data.json`
 
 启动后打开浏览器访问 **http://127.0.0.1:8080**
+
+### 开发与自检
+
+```bash
+cd sb-signin
+go test ./...        # 离线单测：PoW / 验证脚本复刻 / 错误文案提取
+```
+
+`testdata/` 下保存了 cap.js 的 challenge 与验证脚本样本，`expected.json` 为 Node.js 按官方算法生成的权威期望值。若论坛升级人机验证导致 `go test` 失败，可重新抓取样本后重新生成期望值：
+
+```bash
+# 1. 从签到页 HTML 中找到 data-cap-api-endpoint（形如 https://capjs.net/xxxxxxxxxx/）
+# 2. 抓取一份新的 challenge 响应
+curl -s -X POST -H "Content-Type: application/json" -H "Origin: https://sb.sb" --data '{}' \
+  https://capjs.net/xxxxxxxxxx/challenge -o testdata/challenge.json
+# 3. 重新生成 instr.js 与 expected.json
+node testdata/gen_expected.js
+```
+
+需要联调真实网络时（默认跳过）：
+
+```bash
+LIVE_CAP=1    go test -run TestLiveSolveCaptcha -v .   # 校验人机验证可换取 cap-token
+LIVE_SIGNIN=1 go test -run TestLiveDoSignin -v .       # 用 data.json 首个账号走完整签到
+```
 
 ### 2. 添加账号（二选一）
 

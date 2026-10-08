@@ -1,0 +1,36 @@
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuIjoiOTU0Njg4ODY5NmFkODE1MzUyZWMyYWY2ZmE0NmVkOTdlOGI3YWFiZTNjMDZkYmU0ZjciLCJjIjo4MCwicyI6MzIsImQiOjQsImV4cCI6MTc5MTQyOTAyNjY4OCwiaWF0IjoxNzkxNDI4MTI2Njg4LCJzayI6IjQxNTc4NjY3M2IiLCJlaSI6InZidmNGc2xUVVFzMTNqZXdvVTZ4M1hReWxiTHpleG82QUVrWTJBZTk4UVpXajJsQm9xdS13V0lnclFYbWlBYm5ZNGJBNXFXSGwtSE80alU0djlfaDBTUlBjZDRJRXJ3bXhZeDE1TDVHSDREQ1VnUW5sak91cXhwOWZPSlNqdmpMaVFKYlVJUVBqdG9wX09URk1ncEhnNWFrcGlqaGlmN3g3dF9ibTJjNUsxMW5FT1hZbTM2WXk2M2l5SXB3bGNMLXh2dXlURzEzQTRZY1lSbVl2c0w3MU5oOFVaM0JkTGlXZXk2V2xJeW9wRkNiMDgxcGZwTVZsRDU4cWxVMDNkWXhpdDR4dFdVUllIX3FrZWdhNXBtdkJlT1BkOXprSnJPNWVtbDZHM2xVb2xxcnFlVTVaQ1dGMzNiVlZiaFMifQ.HNP8EafKydxFlbhQs_akX0yrqvB0dyMEK6YLk2cU_3o",
+  "challenge": {
+    "c": 80,
+    "s": 32,
+    "d": 4
+  },
+  "salts": [
+    "5f93127686645f98bf7c7333125b7c7e",
+    "3294f4d22dd2b8752158867b036828b0",
+    "289fc18ec56352f948b889876880ed23"
+  ],
+  "targets": [
+    "7d4d",
+    "ee75",
+    "231c"
+  ],
+  "nonces": [
+    19388,
+    261286,
+    373
+  ],
+  "nonce_instr": "c4c712beea4d27b102fdd1c7927c29ab",
+  "state": {
+    "zd2tewnhpzyk": 993168,
+    "a1vc6ggkgkbv": 579134,
+    "p5hdodkrhdgn": 569689,
+    "eenpssao0wle": 410267
+  },
+  "gen_samples": [
+    "0bb9adb8",
+    "0bb9adb8ffd8e55f8d1de826333f356a",
+    "5f93127686645f98",
+    "7d4d3b"
+  ]
+}
