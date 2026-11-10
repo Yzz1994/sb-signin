@@ -1,3 +1,5 @@
 module sb-signin
 
-go 1.24.5
+go 1.24
+
+require golang.org/x/sys v0.30.0

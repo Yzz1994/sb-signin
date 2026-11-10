@@ -31,7 +31,7 @@ func TestLiveSolveCaptcha(t *testing.T) {
 	if os.Getenv("LIVE_CAP") == "" {
 		t.Skip("需要 LIVE_CAP=1 手动开启")
 	}
-	client := &http.Client{Timeout: 90 * time.Second}
+	client := newHTTPClient(90 * time.Second)
 	start := time.Now()
 	tok, err := solveCaptcha(client, liveCapEndpoint)
 	if err != nil {

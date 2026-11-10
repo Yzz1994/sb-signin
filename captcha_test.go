@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
+	"math"
 	"os"
 	"strconv"
 	"testing"
@@ -18,12 +19,13 @@ type expectedData struct {
 	Nonces     []uint64              `json:"nonces"`
 	NonceInstr string                `json:"nonce_instr"`
 	State      map[string]int64      `json:"state"`
+	StateMixed map[string]int64      `json:"state_mixed"`
 	GenSamples []string              `json:"gen_samples"`
 }
 
-func loadExpected(t *testing.T) *expectedData {
+func loadExpected(t *testing.T, prefix string) *expectedData {
 	t.Helper()
-	buf, err := os.ReadFile("testdata/expected.json")
+	buf, err := os.ReadFile("testdata/expected" + prefix + ".json")
 	if err != nil {
 		t.Fatalf("读取期望数据失败: %v", err)
 	}
@@ -36,7 +38,7 @@ func loadExpected(t *testing.T) *expectedData {
 
 // TestCapGen 校验确定性字符串生成与 JS 实现一致
 func TestCapGen(t *testing.T) {
-	e := loadExpected(t)
+	e := loadExpected(t, "")
 	cases := []struct {
 		seed string
 		n    int
@@ -56,7 +58,7 @@ func TestCapGen(t *testing.T) {
 
 // TestCapSolve 校验 PoW 求解结果与浏览器端一致（最小 nonce）
 func TestCapSolve(t *testing.T) {
-	e := loadExpected(t)
+	e := loadExpected(t, "")
 	for i := range e.Salts {
 		got := capSolve(e.Salts[i], e.Targets[i])
 		if got != e.Nonces[i] {
@@ -67,7 +69,7 @@ func TestCapSolve(t *testing.T) {
 
 // TestSolveCapPowOrder 校验并发生成时题目顺序与盐值对应关系正确
 func TestSolveCapPowOrder(t *testing.T) {
-	e := loadExpected(t)
+	e := loadExpected(t, "")
 	got := solveCapPow(e.Token, len(e.Salts), e.Challenge.S, e.Challenge.D)
 	for i := range got {
 		if got[i] != e.Nonces[i] {
@@ -77,67 +79,170 @@ func TestSolveCapPowOrder(t *testing.T) {
 }
 
 // TestEvalInstrState 校验 instrumentation 脚本 state 的离线复刻结果
+// 覆盖两代脚本格式：v1（块尾有 &0x7FFFFFFF 归一化）与 v2（直接收集返回）
 func TestEvalInstrState(t *testing.T) {
-	e := loadExpected(t)
-	js, err := os.ReadFile("testdata/instr.js")
-	if err != nil {
-		t.Fatalf("读取脚本样本失败: %v", err)
-	}
-	got, err := evalInstrState(string(js))
-	if err != nil {
-		t.Fatalf("解析 state 失败: %v", err)
-	}
-	if len(got) != len(e.State) {
-		t.Fatalf("state 字段数量 = %d, want %d", len(got), len(e.State))
-	}
-	for k, want := range e.State {
-		v, ok := got[k].(int64)
-		if !ok {
-			t.Fatalf("state[%s] 类型异常: %T", k, got[k])
+	for _, prefix := range []string{"", "_v2"} {
+		e := loadExpected(t, prefix)
+		js, err := os.ReadFile("testdata/instr" + prefix + ".js")
+		if err != nil {
+			t.Fatalf("读取脚本样本失败: %v", err)
 		}
-		if v != want {
-			t.Errorf("state[%s] = %d, want %d", k, v, want)
+		got, err := evalInstrState(string(js))
+		if err != nil {
+			t.Fatalf("解析 state 失败（%s）: %v", prefix, err)
+		}
+		if len(got) != len(e.State) {
+			t.Fatalf("state 字段数量 = %d, want %d", len(got), len(e.State))
+		}
+		for k, want := range e.State {
+			v, ok := got[k].(int64)
+			if !ok {
+				t.Fatalf("state[%s] 类型异常: %T", k, got[k])
+			}
+			if v != want {
+				t.Errorf("state[%s] = %d, want %d", k, v, want)
+			}
 		}
 	}
 }
 
 // TestBuildInstr 校验完整 instr 构造（nonce、state、指纹、时间戳）
 func TestBuildInstr(t *testing.T) {
-	e := loadExpected(t)
-	buf, err := os.ReadFile("testdata/challenge.json")
-	if err != nil {
-		t.Fatalf("读取 challenge 样本失败: %v", err)
-	}
-	var ch capChallengeResp
-	if err := json.Unmarshal(buf, &ch); err != nil {
-		t.Fatalf("解析 challenge 样本失败: %v", err)
-	}
-	if _, err := base64.StdEncoding.DecodeString(ch.Instrumentation); err != nil {
-		t.Fatalf("样本 instrumentation 不是合法 base64: %v", err)
-	}
-	instr, err := buildInstr(ch.Instrumentation)
-	if err != nil {
-		t.Fatalf("构造 instr 失败: %v", err)
-	}
-	if instr["i"] != e.NonceInstr {
-		t.Errorf("instr.i = %v, want %s", instr["i"], e.NonceInstr)
-	}
-	state, ok := instr["state"].(map[string]any)
-	if !ok {
-		t.Fatalf("instr.state 类型异常: %T", instr["state"])
-	}
-	for k, want := range e.State {
-		if got, _ := state[k].(int64); got != want {
-			t.Errorf("instr.state[%s] = %v, want %d", k, state[k], want)
+	for _, prefix := range []string{"", "_v2"} {
+		e := loadExpected(t, prefix)
+		buf, err := os.ReadFile("testdata/challenge" + prefix + ".json")
+		if err != nil {
+			t.Fatalf("读取 challenge 样本失败: %v", err)
+		}
+		var ch capChallengeResp
+		if err := json.Unmarshal(buf, &ch); err != nil {
+			t.Fatalf("解析 challenge 样本失败: %v", err)
+		}
+		if _, err := base64.StdEncoding.DecodeString(ch.Instrumentation); err != nil {
+			t.Fatalf("样本 instrumentation 不是合法 base64: %v", err)
+		}
+		instr, err := buildInstr(ch.Instrumentation)
+		if err != nil {
+			t.Fatalf("构造 instr 失败（%s）: %v", prefix, err)
+		}
+		if instr["i"] != e.NonceInstr {
+			t.Errorf("instr.i = %v, want %s", instr["i"], e.NonceInstr)
+		}
+		state, ok := instr["state"].(map[string]any)
+		if !ok {
+			t.Fatalf("instr.state 类型异常: %T", instr["state"])
+		}
+		if prefix == "" {
+			// 旧版：state 为原始值 + p 指纹 + ts
+			for k, want := range e.State {
+				if got, _ := state[k].(int64); got != want {
+					t.Errorf("instr.state[%s] = %v, want %d", k, state[k], want)
+				}
+			}
+			fp, ok := instr["p"].(map[string]any)
+			if !ok || fp["ua"] != userAgent || fp["webdriver"] != false {
+				t.Errorf("instr.p 指纹异常: %v", instr["p"])
+			}
+			if ts, _ := instr["ts"].(int64); ts <= 0 {
+				t.Errorf("instr.ts 异常: %v", instr["ts"])
+			}
+			continue
+		}
+		// 新版：{i, state（混叠值）, d（指纹 JSON）}
+		if _, has := instr["p"]; has {
+			t.Error("新版 instr 不应包含 p 字段")
+		}
+		d, _ := instr["d"].(string)
+		if len(d) < 1000 {
+			t.Errorf("instr.d 异常: 长度 %d", len(d))
+		}
+		if len(state) != len(e.State) {
+			t.Fatalf("state 字段数量 = %d, want %d", len(state), len(e.State))
+		}
+		for k, v := range state {
+			n, ok := v.(int64)
+			if !ok || n < 100000 || n > 999999 {
+				t.Errorf("state[%s] = %v，应为 100000~999999 的混叠值", k, v)
+			}
 		}
 	}
-	fp, ok := instr["p"].(map[string]any)
-	if !ok || fp["ua"] != userAgent || fp["webdriver"] != false {
-		t.Errorf("instr.p 指纹异常: %v", instr["p"])
+}
+
+// TestMixCapState 用 Node 权威计算的对拍值校验混叠逻辑（固定 d 样本）
+func TestMixCapState(t *testing.T) {
+	e := loadExpected(t, "_v2")
+	if e.StateMixed == nil {
+		t.Fatal("expected_v2.json 缺少 state_mixed（请用 gen_expected.js 重新生成）")
 	}
-	if ts, _ := instr["ts"].(int64); ts <= 0 {
-		t.Errorf("instr.ts 异常: %v", instr["ts"])
+	dBytes, err := os.ReadFile("testdata/captured_d.txt")
+	if err != nil {
+		t.Fatalf("读取 captured_d.txt 失败: %v", err)
 	}
+	jsBytes, err := os.ReadFile("testdata/instr_v2.js")
+	if err != nil {
+		t.Fatalf("读取 instr_v2.js 失败: %v", err)
+	}
+	raw, err := evalInstrState(string(jsBytes))
+	if err != nil {
+		t.Fatalf("解析 state 失败: %v", err)
+	}
+	got, err := mixCapState(string(jsBytes), raw, string(dBytes))
+	if err != nil {
+		t.Fatalf("混叠计算失败: %v", err)
+	}
+	if len(got) != len(e.StateMixed) {
+		t.Fatalf("混叠字段数量 = %d, want %d", len(got), len(e.StateMixed))
+	}
+	for k, want := range e.StateMixed {
+		if v, _ := got[k].(int64); v != want {
+			t.Errorf("mixed[%s] = %d, want %d", k, v, want)
+		}
+	}
+}
+
+// TestSerializeCapturedD 校验自定义序列化与真实浏览器产物逐字节一致
+func TestSerializeCapturedD(t *testing.T) {
+	raw, err := os.ReadFile("testdata/captured_d.txt")
+	if err != nil {
+		t.Fatalf("读取 captured_d.txt 失败: %v", err)
+	}
+	var parsed any
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("captured_d.txt 不是合法 JSON: %v", err)
+	}
+	if got := serializeJV(anyToJV(parsed)); got != string(raw) {
+		t.Errorf("序列化结果与真实样本不一致:\n got  len=%d\n want len=%d", len(got), len(raw))
+	}
+}
+
+// anyToJV 将 encoding/json 解析结果转为 jv 树
+func anyToJV(v any) jv {
+	switch x := v.(type) {
+	case nil:
+		return jvNull{}
+	case bool:
+		return jvBool(x)
+	case float64:
+		if x == math.Trunc(x) && math.Abs(x) < 1e15 {
+			return jvInt(int64(x))
+		}
+		return jvNum(x)
+	case string:
+		return jvStr(x)
+	case []any:
+		arr := make(jvArr, 0, len(x))
+		for _, e := range x {
+			arr = append(arr, anyToJV(e))
+		}
+		return arr
+	case map[string]any:
+		obj := make(jvObj, len(x))
+		for k, e := range x {
+			obj[k] = anyToJV(e)
+		}
+		return obj
+	}
+	return jvNull{}
 }
 
 // TestEvalJSExpr 校验表达式解释器的 32 位运算语义

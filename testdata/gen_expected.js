@@ -1,6 +1,8 @@
 // 用 Node.js 计算 cap.js 的权威期望值，供 Go 测试对比
-// 用法（在项目根目录执行）：node testdata/gen_expected.js
-// 会从 testdata/challenge.json 解压出 testdata/instr.js 并生成 testdata/expected.json
+// 用法（在项目根目录执行）：node testdata/gen_expected.js [challenge.json] [前缀]
+// 默认从 testdata/challenge.json 解压出 testdata/instr.js 并生成 testdata/expected.json；
+// 传参如：node testdata/gen_expected.js testdata/challenge_v2.json v2
+// 则生成 testdata/instr_v2.js 与 testdata/expected_v2.json
 const fs = require('fs');
 const zlib = require('zlib');
 
@@ -78,26 +80,72 @@ function cs(a, b, c) {
   return i.v() | (new F(b)).v();
 }
 
-// ---- 计算 instr 脚本的 state ----
-function evalState(js) {
-  const m = /var (\w+)=(\d+);var (\w+)=(\d+);var (\w+)=(\d+);var (\w+)=(\d+);/.exec(js);
-  const names = [m[1], m[3], m[5], m[7]];
-  const vals = [m[2], m[4], m[6], m[8]].map(Number);
-  const csName = /function (\w+)\(a,b,c\)\{function F\(d\)\{this\.v=function\(\)\{return this\.k\^d;/.exec(js)[1];
-  const gmName = /function (\w+)\(x,y,z\)\{var d=document\.createElement\('div'\)/.exec(js)[1];
-  const start = js.search(new RegExp(`\\b${names[0]}\\s*=\\s*${names[0]}\\s*\\^`));
-  const endRe = new RegExp(`${names[3]}\\s*=\\s*\\(\\(\\s*${names[3]}\\s*\\^\\s*\\d+\\s*\\)\\s*&\\s*0x7FFFFFFF\\)`);
-  const em = endRe.exec(js);
-  const end = js.indexOf(';', em.index + em[0].length) + 1;
-  const block = js.slice(start, end);
-  const body = `var ${names[0]}=${vals[0]},${names[1]}=${vals[1]},${names[2]}=${vals[2]},${names[3]}=${vals[3]};` +
-    block + `return {${names[0]},${names[1]},${names[2]},${names[3]}};`;
-  const fn = new Function(gmName, csName, 'navigator', body);
-  return fn(gm, cs, { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0' });
-}
+  // ---- 计算 instr 脚本的 state ----
+  function evalState(js) {
+    const m = /var (\w+)=(\d+);var (\w+)=(\d+);var (\w+)=(\d+);var (\w+)=(\d+);/.exec(js);
+    const names = [m[1], m[3], m[5], m[7]];
+    const vals = [m[2], m[4], m[6], m[8]].map(Number);
+    const csName = /function (\w+)\(a,b,c\)\{function F\(d\)\{this\.v=function\(\)\{return this\.k\^d;/.exec(js)[1];
+    const gmName = /function (\w+)\(x,y,z\)\{var d=document\.createElement\('div'\)/.exec(js)[1];
+    const start = js.search(new RegExp(`\\b${names[0]}\\s*=\\s*${names[0]}\\s*\\^`));
+    // 终点锚点：收集语句 var X={};X["A"]=A（新旧格式均有）；旧版归一化语句仅作兜底
+    let end = -1;
+    const cm = new RegExp(`var\\s+\\w+\\s*=\\s*\\{\\};\\w+\\["${names[0]}"\\]`).exec(js.slice(start));
+    if (cm) {
+      end = start + cm.index;
+    } else {
+      const endRe = new RegExp(`${names[3]}\\s*=\\s*\\(\\(\\s*${names[3]}\\s*\\^\\s*\\d+\\s*\\)\\s*&\\s*0x7FFFFFFF\\)`);
+      const em = endRe.exec(js);
+      end = js.indexOf(';', em.index + em[0].length) + 1;
+    }
+    const block = js.slice(start, end);
+    const body = `var ${names[0]}=${vals[0]},${names[1]}=${vals[1]},${names[2]}=${vals[2]},${names[3]}=${vals[3]};` +
+      block + `return {${names[0]},${names[1]},${names[2]},${names[3]}};`;
+    const fn = new Function(gmName, csName, 'navigator', body);
+    return fn(gm, cs, { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0' });
+  }
+
+  // ---- 按新版协议计算混叠 state（与 Go mixCapState 对拍）----
+  // 脚本生成器随机化：校验种子（可为负）、Z 绑定的混叠位置、名字顺序，需通用解析
+  function fnv1a32(s, seed) {
+    let h = seed >>> 0;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = (h + (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)) >>> 0;
+    }
+    return h >>> 0;
+  }
+  function mixedState(js, rawState, d) {
+    const chkRe = /(\w+)\s*=\s*\w+\(\s*\w+\s*,\s*\(\s*(-?\d+)\s*\^\s*\w+\(\s*\w+\["(\w+)"\][^)]*?,\s*(-?\d+)\s*\)\s*\)\s*>\s*>\s*>\s*0/g;
+    const chk = [...js.matchAll(chkRe)];
+    if (chk.length !== 2) return null;
+    const zByName = {};
+    for (const m of chk) zByName[m[1]] = { outer: Number(m[2]) | 0, inner: Number(m[4]) | 0 };
+    const rawKeys = new Set(Object.keys(rawState));
+    const orderNames = [...chk[0][0].matchAll(/\["(\w+)"\]/g)].map(m => m[1])
+      .filter(n => rawKeys.has(n)).filter((n, i, a) => a.indexOf(n) === i).slice(0, 4);
+    if (orderNames.length !== 4) return null;
+    const vals = orderNames.map(n => rawState[n]);
+    const stateStr = vals.join(',');
+    const out = {};
+    orderNames.forEach((name, i) => {
+      const mixRe = new RegExp(`\\w+\\["${name}"\\]\\s*=\\s*\\(\\(\\s*\\w+\\["${name}"\\]\\s*\\^\\s*(-?\\d+)\\s*(?:\\^\\s*(\\w+)\\s*)?\\)\\s*&\\s*0x7FFFFFFF\\)`);
+      const m = mixRe.exec(js);
+      if (!m) throw new Error('mix stmt missing: ' + name);
+      let z = 0;
+      if (m[2]) {
+        const zd = zByName[m[2]];
+        z = fnv1a32(d, (zd.outer ^ fnv1a32(stateStr, zd.inner)) >>> 0);
+      }
+      out[name] = (((vals[i] ^ Number(m[1]) ^ z) & 0x7FFFFFFF) % 900000) + 100000;
+    });
+    return out;
+  }
 
 (async () => {
-  const ch = JSON.parse(fs.readFileSync('testdata/challenge.json', 'utf8'));
+  const inPath = process.argv[2] || 'testdata/challenge.json';
+  const prefix = process.argv[3] || '';
+  const ch = JSON.parse(fs.readFileSync(inPath, 'utf8'));
   const token = ch.token;
   const c = ch.challenge.c, s = ch.challenge.s, diff = ch.challenge.d;
 
@@ -108,8 +156,16 @@ function evalState(js) {
   }
 
   const js = zlib.inflateRawSync(Buffer.from(ch.instrumentation, 'base64')).toString('utf8');
-  fs.writeFileSync('testdata/instr.js', js);
+  fs.writeFileSync(`testdata/instr${prefix}.js`, js);
   const state = evalState(js);
+
+  // 新版脚本额外对拍混叠 state（固定 d 取真实抓包样本，保证可复现）
+  let stateMixed = null;
+  let dFixture = null;
+  try {
+    dFixture = fs.readFileSync('testdata/captured_d.txt', 'utf8');
+    stateMixed = mixedState(js, state, dFixture);
+  } catch (e) { /* 旧格式脚本无混叠段 */ }
 
   const out = {
     token,
@@ -117,8 +173,9 @@ function evalState(js) {
     salts, targets, nonces,
     nonce_instr: /nonce:\s*"([0-9a-fA-F]+)"/.exec(js)[1],
     state,
+    state_mixed: stateMixed,
     gen_samples: [d('abc', 8), d('abc', 32), d(token + '1', 16), d(token + '1d', 6)],
   };
-  fs.writeFileSync('testdata/expected.json', JSON.stringify(out, null, 2));
+  fs.writeFileSync(`testdata/expected${prefix}.json`, JSON.stringify(out, null, 2));
   console.log(JSON.stringify(out, null, 2));
 })();

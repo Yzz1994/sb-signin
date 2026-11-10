@@ -14,7 +14,7 @@ import (
 const (
 	// checkinURL 签到页（旧地址 /signin/ 已 301 跳转到 /checkin/）
 	checkinURL = "https://sb.sb/checkin/"
-	userAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+	userAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ZCode/3.17.2 Chrome/152.0.7977.130 Electron/44.7.0 Safari/537.36"
 )
 
 // SigninResult 单次签到结果
@@ -41,7 +41,7 @@ func doSignin(a *Account) SigninResult {
 	}
 
 	// 超时含人机验证（PoW）耗时：难度提升时求解时间会变长，故给到 120 秒
-	client := &http.Client{Timeout: 120 * time.Second}
+	client := newHTTPClient(120 * time.Second)
 
 	// 第一步：GET 签到页面，判断当前状态
 	pageHTML, err := getSigninPage(client, a)
